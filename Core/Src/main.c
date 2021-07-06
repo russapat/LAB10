@@ -69,6 +69,7 @@ float Frequency = 1;
 uint16_t SawtoothHigh = 4096; // 2^12 max3.3
 uint16_t SawtoothLow = 0; // offset
 float Second = 0;
+uint16_t Slope=0;
 enum STATEDISPLAY{
 	StateStart = 0,
 	StateChoosewaveform = 1,
@@ -192,6 +193,8 @@ int main(void)
 					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 					sprintf(TxDataBuffer, "[a] increase min volt\r\n[d] decrease min volt\r\n");
 					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+					sprintf(TxDataBuffer, "[q] increase frequency\r\n[e] decrease frequency\r\n");
+										HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 					StateDisplay = 5;
 					break;
 				case 3:
@@ -203,34 +206,59 @@ int main(void)
 						Second = 0;
 					}
 					else {
-						dataOut = ((SawtoothHigh-SawtoothLow)*Second*Frequency)+SawtoothLow;
+						if (Slope==0){
+							dataOut = ((SawtoothHigh-SawtoothLow)*Second*Frequency)+SawtoothLow;
+						}
+						else if(Slope == 1){
+							dataOut = ((SawtoothLow-SawtoothHigh)*Second*Frequency)+SawtoothHigh;
+						}
 					}
 
 					if (inputchar != -1){
-						if (inputchar == '-' && SawtoothHigh >=0 ){
+						if (inputchar == '-' && SawtoothHigh >= SawtoothLow+50 ){
 							SawtoothHigh -= 124.12;
 							float VoltHigh = (SawtoothHigh*3.3)/4096;
 							sprintf(TxDataBuffer, "V HIGH = %.1f \r\n",VoltHigh);
 							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 							}
-						if (inputchar == '+' && SawtoothHigh <= 4096){
+						if (inputchar == '+' && SawtoothHigh <= 3971 && SawtoothHigh+50 >= SawtoothLow){
 							SawtoothHigh += 124.12;
 							float VoltHigh = (SawtoothHigh*3.3)/4096;
 							sprintf(TxDataBuffer, "V HIGH = %.1f \r\n",VoltHigh);
 							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 							}
-						if (inputchar == 'a'){
+						if (inputchar == 'a' && SawtoothHigh >= SawtoothLow+50){
 							SawtoothLow += 124.12;
 							float VoltHigh = (SawtoothLow*3.3)/4096;
-							sprintf(TxDataBuffer, "V HIGH = %.1f \r\n",VoltHigh);
+							sprintf(TxDataBuffer, "V LOW = %.1f \r\n",VoltHigh);
 							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 							}
-						if (inputchar == 'd'){
+						if (inputchar == 'd' && SawtoothHigh+50 > SawtoothLow){
 							SawtoothLow -= 124.12;
 							float VoltHigh = (SawtoothLow*3.3)/4096;
-							sprintf(TxDataBuffer, "V HIGH = %.1f \r\n",VoltHigh);
+							sprintf(TxDataBuffer, "V LOW = %.1f \r\n",VoltHigh);
 							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 							}
+						if (inputchar == 'q'){
+							Frequency += 0.1;
+							sprintf(TxDataBuffer, "frequency = %.1f \r\n",Frequency);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+							}
+						if (inputchar == 'e'){
+							Frequency -= 0.1;
+							sprintf(TxDataBuffer, "frequency = %.1f \r\n",Frequency);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+							}
+						if (inputchar == 's'&& Slope==0){
+							Slope = 1;
+							sprintf(TxDataBuffer, "Slope Down \r\n");
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+							}
+						else if (inputchar == 's'&& Slope!=0){
+							Slope = 0;
+							sprintf(TxDataBuffer, "Slope Up \r\n");
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+						}
 					}
 					break;
 
