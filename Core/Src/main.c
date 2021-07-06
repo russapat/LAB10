@@ -22,7 +22,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -51,10 +53,30 @@ TIM_HandleTypeDef htim11;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+char TxDataBuffer[64] =
+{ 0 };
+char RxDataBuffer[64] =
+{ 0 };
+
+uint16_t StateDisplay = 0;
+
 uint16_t ADCin = 0;
 uint64_t _micro = 0;
 uint16_t dataOut = 0;
-	uint8_t DACConfig = 0b0011;
+uint8_t DACConfig = 0b0011;
+
+float Frequency = 1;
+uint16_t SawtoothHigh = 4096; // 2^12 max3.3
+uint16_t SawtoothLow = 0; // offset
+float Second = 0;
+enum STATEDISPLAY{
+	StateStart = 0,
+	StateChoosewaveform = 1,
+	StateSawtooth = 2,
+	StateSine = 3,
+	StateSquare = 4,
+	StateContolSawtooth = 5,
+};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -62,13 +84,15 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
-static void MX_SPI3_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_SPI3_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM11_Init(void);
 /* USER CODE BEGIN PFP */
+
 void MCP4922SetOutput(uint8_t Config, uint16_t DACOutput);
 uint64_t micros();
+int16_t UARTRecieveIT();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -106,8 +130,8 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_USART2_UART_Init();
-  MX_SPI3_Init();
   MX_ADC1_Init();
+  MX_SPI3_Init();
   MX_TIM3_Init();
   MX_TIM11_Init();
   /* USER CODE BEGIN 2 */
@@ -122,12 +146,100 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 	while (1)
 	{
-		static uint64_t timestamp = 0;
-		if (micros() - timestamp > 100)
+
+
+		HAL_UART_Receive_IT(&huart2,  (uint8_t*)RxDataBuffer, 64);
+		int16_t inputchar = UARTRecieveIT();
+		if(inputchar!=-1)
 		{
+			sprintf(TxDataBuffer, "ReceivedChar:[%c]\r\n", inputchar);
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+		}
+
+		static uint64_t timestamp = 0;
+		if (micros() - timestamp >= 1000) // timestamp
+		{
+			Second += 0.001;
+			switch (StateDisplay) {
+				case 0:
+					sprintf(TxDataBuffer, "*********************\r\n");
+					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+					sprintf(TxDataBuffer, "Choose the wave form\r\n1:sawtooth\r\n2:Sine\r\n3:Square\r\n");
+					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+					StateDisplay = 1;
+					break;
+				case 1:
+					if (inputchar != -1) {
+						if (inputchar == '1') {
+							sprintf(TxDataBuffer, "Sawtooth\r\n");
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+							StateDisplay = 2;
+						}
+						else if(inputchar == '2'){
+							sprintf(TxDataBuffer, "Sine wave\r\n");
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+							StateDisplay = 3;
+						}
+						else if(inputchar == '3'){
+							sprintf(TxDataBuffer, "Square wave\r\n");
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+							StateDisplay = 4;
+						}
+					}
+					break;
+				case 2:
+					sprintf(TxDataBuffer, "[+] add max volt\r\n[-] minus max volt\r\n[s] change slope\r\n");
+					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+					sprintf(TxDataBuffer, "[a] increase min volt\r\n[d] decrease min volt\r\n");
+					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+					StateDisplay = 5;
+					break;
+				case 3:
+					break;
+				case 4:
+					break;
+				case 5:
+					if (Second >= 1/Frequency){
+						Second = 0;
+					}
+					else {
+						dataOut = ((SawtoothHigh-SawtoothLow)*Second*Frequency)+SawtoothLow;
+					}
+
+					if (inputchar != -1){
+						if (inputchar == '-' && SawtoothHigh >=0 ){
+							SawtoothHigh -= 124.12;
+							float VoltHigh = (SawtoothHigh*3.3)/4096;
+							sprintf(TxDataBuffer, "V HIGH = %.1f \r\n",VoltHigh);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+							}
+						if (inputchar == '+' && SawtoothHigh <= 4096){
+							SawtoothHigh += 124.12;
+							float VoltHigh = (SawtoothHigh*3.3)/4096;
+							sprintf(TxDataBuffer, "V HIGH = %.1f \r\n",VoltHigh);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+							}
+						if (inputchar == 'a'){
+							SawtoothLow += 124.12;
+							float VoltHigh = (SawtoothLow*3.3)/4096;
+							sprintf(TxDataBuffer, "V HIGH = %.1f \r\n",VoltHigh);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+							}
+						if (inputchar == 'd'){
+							SawtoothLow -= 124.12;
+							float VoltHigh = (SawtoothLow*3.3)/4096;
+							sprintf(TxDataBuffer, "V HIGH = %.1f \r\n",VoltHigh);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+							}
+					}
+					break;
+
+				default:
+					break;
+			}
 			timestamp = micros();
-			dataOut++;
-			dataOut %= 4096;
+
+
 			if (hspi3.State == HAL_SPI_STATE_READY
 					&& HAL_GPIO_ReadPin(SPI_SS_GPIO_Port, SPI_SS_Pin)
 							== GPIO_PIN_SET)
@@ -216,7 +328,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc1.Init.NbrOfConversion = 1;
   hadc1.Init.DMAContinuousRequests = ENABLE;
-  hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     Error_Handler();
@@ -259,7 +371,7 @@ static void MX_SPI3_Init(void)
   hspi3.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi3.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi3.Init.NSS = SPI_NSS_SOFT;
-  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
   hspi3.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi3.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi3.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -293,7 +405,7 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 100;
+  htim3.Init.Prescaler = 99;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim3.Init.Period = 100;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -335,7 +447,7 @@ static void MX_TIM11_Init(void)
 
   /* USER CODE END TIM11_Init 1 */
   htim11.Instance = TIM11;
-  htim11.Init.Prescaler = 100;
+  htim11.Init.Prescaler = 99;
   htim11.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim11.Init.Period = 65535;
   htim11.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -482,6 +594,24 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 inline uint64_t micros()
 {
 	return htim11.Instance->CNT + _micro;
+}
+
+int16_t UARTRecieveIT()
+{
+	static uint32_t dataPos =0;
+	int16_t data=-1;
+	if(huart2.RxXferSize - huart2.RxXferCount!=dataPos)
+	{
+		data=RxDataBuffer[dataPos];
+		dataPos= (dataPos+1)%huart2.RxXferSize;
+	}
+	return data;
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	sprintf(TxDataBuffer, "Received:[%s]\r\n", RxDataBuffer);
+	HAL_UART_Transmit_IT(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer));
 }
 /* USER CODE END 4 */
 
