@@ -62,7 +62,7 @@ uint16_t StateDisplay = 0;
 
 uint16_t ADCin = 0;
 uint64_t _micro = 0;
-uint16_t dataOut = 0;
+float dataOut = 0;
 uint8_t DACConfig = 0b0011;
 
 float Frequency = 1;
@@ -70,6 +70,9 @@ uint16_t SawtoothHigh = 4096; // 2^12 max3.3
 uint16_t SawtoothLow = 0; // offset
 float Second = 0;
 uint16_t Slope=0;
+float Sindata = 1;
+float Offset = 2048;
+float Amplitude = 2048;
 enum STATEDISPLAY{
 	StateStart = 0,
 	StateChoosewaveform = 1,
@@ -77,6 +80,8 @@ enum STATEDISPLAY{
 	StateSine = 3,
 	StateSquare = 4,
 	StateContolSawtooth = 5,
+	StateControlSine = 6,
+	StateControlSquare = 7,
 };
 /* USER CODE END PV */
 
@@ -194,12 +199,26 @@ int main(void)
 					sprintf(TxDataBuffer, "[a] increase min volt\r\n[d] decrease min volt\r\n");
 					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 					sprintf(TxDataBuffer, "[q] increase frequency\r\n[e] decrease frequency\r\n");
-										HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 					StateDisplay = 5;
 					break;
 				case 3:
+					sprintf(TxDataBuffer, "[+] add max volt\r\n[-] minus max volt\r\n");
+					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+					sprintf(TxDataBuffer, "[a] increase min volt\r\n[d] decrease min volt\r\n");
+					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+					sprintf(TxDataBuffer, "[q] increase frequency\r\n[e] decrease frequency\r\n");
+					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+					StateDisplay = 6;
 					break;
 				case 4:
+					sprintf(TxDataBuffer, "[+] add max volt\r\n[-] minus max volt\r\n");
+					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+					sprintf(TxDataBuffer, "[a] increase min volt\r\n[d] decrease min volt\r\n");
+					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+					sprintf(TxDataBuffer, "[q] increase frequency\r\n[e] decrease frequency\r\n");
+					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+					StateDisplay = 7;
 					break;
 				case 5:
 					if (Second >= 1/Frequency){
@@ -260,6 +279,12 @@ int main(void)
 							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 						}
 					}
+					break;
+				case 6:
+					Sindata = 2*M_PI*Frequency*Second;
+					dataOut = Amplitude*sinf(Sindata)+Offset;
+					break;
+				case 7:
 					break;
 
 				default:
