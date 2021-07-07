@@ -81,9 +81,9 @@ float Sinelow = 0;
 
 // square
 float Square = 0;
-float DutyCycle = 50;
+uint16_t DutyCycle = 50;
 float TimeOn = 0;
-float SquareHigh = 4096;
+float SquareHigh = 4095;
 float SquareLow = 0;
 
 enum STATEDISPLAY{
@@ -213,6 +213,8 @@ int main(void)
 					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 					sprintf(TxDataBuffer, "[q] increase frequency\r\n[e] decrease frequency\r\n");
 					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+					sprintf(TxDataBuffer, "[x] Back to main menu frequency\r\n");
+					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 					StateDisplay = 5;
 					break;
 				case 3:
@@ -221,6 +223,8 @@ int main(void)
 					sprintf(TxDataBuffer, "[a] increase min volt\r\n[d] decrease min volt\r\n");
 					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 					sprintf(TxDataBuffer, "[q] increase frequency\r\n[e] decrease frequency\r\n");
+					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+					sprintf(TxDataBuffer, "[x] Back to main menu frequency\r\n");
 					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 					StateDisplay = 6;
 					break;
@@ -231,9 +235,13 @@ int main(void)
 					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 					sprintf(TxDataBuffer, "[q] increase frequency\r\n[e] decrease frequency\r\n");
 					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+					sprintf(TxDataBuffer, "[z] increase Duty cycle\r\n[c] decrease Duty cycle\r\n");
+					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+					sprintf(TxDataBuffer, "[x] Back to main menu frequency\r\n");
+					HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 					StateDisplay = 7;
 					break;
-				case 5:
+				case 5: // Sawtooth
 					if (Second >= 1/Frequency){
 						Second = 0;
 					}
@@ -247,6 +255,9 @@ int main(void)
 					}
 
 					if (inputchar != -1){
+						if(inputchar == 'x'){
+							StateDisplay = 0;
+						}
 						if (inputchar == '-' && SawtoothHigh >= SawtoothLow+50 ){
 							SawtoothHigh -= 124.12;
 							float VoltHigh = (SawtoothHigh*3.3)/4096;
@@ -276,7 +287,7 @@ int main(void)
 							sprintf(TxDataBuffer, "frequency = %.1f \r\n",Frequency);
 							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 							}
-						if (inputchar == 'e' && Frequency >= 0.1){
+						if (inputchar == 'e' && Frequency >= 0){
 							Frequency -= 0.1;
 							sprintf(TxDataBuffer, "frequency = %.1f \r\n",Frequency);
 							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
@@ -293,10 +304,13 @@ int main(void)
 						}
 					}
 					break;
-				case 6:
+				case 6: // Sine wave
 					Sindata = 2*M_PI*Frequency*Second;
 					dataOut = (SineHigh-Sinelow)/2*sinf(Sindata)+(SineHigh+Sinelow)/2;
 					if(inputchar != -1){
+						if(inputchar == 'x'){
+							StateDisplay = 0;
+						}
 						if(inputchar=='+' && SineHigh <= 3971 && SineHigh+50 >= Sinelow){
 							SineHigh +=124.12;
 							float VoltHigh = (SineHigh*3.3)/4096;
@@ -326,14 +340,14 @@ int main(void)
 							sprintf(TxDataBuffer, "frequency = %.1f \r\n",Frequency);
 							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 							}
-						if (inputchar == 'e' && Frequency >= 0.1){
+						if (inputchar == 'e' && Frequency >= 0){
 							Frequency -= 0.1;
 							sprintf(TxDataBuffer, "frequency = %.1f \r\n",Frequency);
 							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 							}
 						}
 					break;
-				case 7:
+				case 7: // Square Wave
 					TimeOn = (1/Frequency)*DutyCycle/100;
 					if(Second <= TimeOn){
 						dataOut = SquareHigh;
@@ -345,16 +359,51 @@ int main(void)
 						Second = 0;
 					}
 					if(inputchar != -1){
-						if(inputchar=='+' && SineHigh <= 3971 && SineHigh+50 >= Sinelow){
+						if(inputchar == 'x'){
+							StateDisplay = 0;
+						}
+						if(inputchar=='+' && SquareHigh <= 3980 && SquareHigh+50 >= SquareLow){
 							SquareHigh +=124.12;
 							float VoltHigh = (SquareHigh*3.3)/4096;
 							sprintf(TxDataBuffer, "V HIGH = %.1f \r\n",VoltHigh);
 							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 						}
-						if(inputchar=='-' && SineHigh >= Sinelow+50){
+						if(inputchar=='-' && SquareHigh >= SquareLow+50){
 							SquareHigh -=124.12;
-							float VoltHigh = (SquareLow*3.3)/4096;
+							float VoltHigh = (SquareHigh*3.3)/4096;
 							sprintf(TxDataBuffer, "V HIGH = %.1f \r\n",VoltHigh);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+						}
+						if (inputchar == 'a' && SquareHigh >= SquareLow+50){
+							SquareLow += 124.12;
+							float VoltHigh = (SquareLow*3.3)/4096;
+							sprintf(TxDataBuffer, "V LOW = %.1f \r\n",VoltHigh);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+						}
+						if (inputchar == 'd' && SquareHigh+50 > SquareLow && SquareLow >= 50){
+							SquareLow -= 124.12;
+							float VoltHigh = (SquareLow*3.3)/4096;
+							sprintf(TxDataBuffer, "V LOW = %.1f \r\n",VoltHigh);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+						}
+						if (inputchar == 'q' && Frequency <= 10){
+							Frequency += 0.1;
+							sprintf(TxDataBuffer, "frequency = %.1f \r\n",Frequency);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+						}
+						if (inputchar == 'e' && Frequency >= 0){
+							Frequency -= 0.1;
+							sprintf(TxDataBuffer, "frequency = %.1f \r\n",Frequency);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+						}
+						if (inputchar == 'z' && DutyCycle < 100){
+							DutyCycle += 10;
+							sprintf(TxDataBuffer, "Duty cycle = %d \r\n",DutyCycle);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+						}
+						if (inputchar == 'c' && DutyCycle > 0){
+							DutyCycle -= 10;
+							sprintf(TxDataBuffer, "Duty cycle = %d \r\n",DutyCycle);
 							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 						}
 					}
@@ -365,9 +414,7 @@ int main(void)
 			}
 			timestamp = micros();
 
-			if (hspi3.State == HAL_SPI_STATE_READY
-					&& HAL_GPIO_ReadPin(SPI_SS_GPIO_Port, SPI_SS_Pin)
-							== GPIO_PIN_SET)
+			if (hspi3.State == HAL_SPI_STATE_READY && HAL_GPIO_ReadPin(SPI_SS_GPIO_Port, SPI_SS_Pin) == GPIO_PIN_SET)
 			{
 				MCP4922SetOutput(DACConfig, dataOut);
 			}
