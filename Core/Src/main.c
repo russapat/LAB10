@@ -53,11 +53,10 @@ TIM_HandleTypeDef htim11;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-char TxDataBuffer[64] =
-{ 0 };
-char RxDataBuffer[64] =
-{ 0 };
+char TxDataBuffer[64] = { 0 };
+char RxDataBuffer[64] = { 0 };
 
+// State flow
 uint16_t StateDisplay = 0;
 
 uint16_t ADCin = 0;
@@ -66,13 +65,27 @@ float dataOut = 0;
 uint8_t DACConfig = 0b0011;
 
 float Frequency = 1;
-uint16_t SawtoothHigh = 4096; // 2^12 max3.3
-uint16_t SawtoothLow = 0; // offset
-float Second = 0;
+// sawtooth
+float SawtoothHigh = 4096; // 2^12 max3.3
+float SawtoothLow = 0; // offset
 uint16_t Slope=0;
+
+// Time in Second
+float Second = 0;
+
+// sine
 float Sindata = 1;
 float Offset = 2048;
-float Amplitude = 2048;
+float SineHigh = 4096;
+float Sinelow = 0;
+
+// square
+float Square = 0;
+float DutyCycle = 50;
+float TimeOn = 0;
+float SquareHigh = 4096;
+float SquareLow = 0;
+
 enum STATEDISPLAY{
 	StateStart = 0,
 	StateChoosewaveform = 1,
@@ -252,18 +265,18 @@ int main(void)
 							sprintf(TxDataBuffer, "V LOW = %.1f \r\n",VoltHigh);
 							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 							}
-						if (inputchar == 'd' && SawtoothHigh+50 > SawtoothLow){
+						if (inputchar == 'd' && SawtoothHigh+50 > SawtoothLow && SawtoothLow >= 50){
 							SawtoothLow -= 124.12;
 							float VoltHigh = (SawtoothLow*3.3)/4096;
 							sprintf(TxDataBuffer, "V LOW = %.1f \r\n",VoltHigh);
 							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 							}
-						if (inputchar == 'q'){
+						if (inputchar == 'q' && Frequency <= 10){
 							Frequency += 0.1;
 							sprintf(TxDataBuffer, "frequency = %.1f \r\n",Frequency);
 							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
 							}
-						if (inputchar == 'e'){
+						if (inputchar == 'e' && Frequency >= 0.1){
 							Frequency -= 0.1;
 							sprintf(TxDataBuffer, "frequency = %.1f \r\n",Frequency);
 							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
@@ -282,16 +295,75 @@ int main(void)
 					break;
 				case 6:
 					Sindata = 2*M_PI*Frequency*Second;
-					dataOut = Amplitude*sinf(Sindata)+Offset;
+					dataOut = (SineHigh-Sinelow)/2*sinf(Sindata)+(SineHigh+Sinelow)/2;
+					if(inputchar != -1){
+						if(inputchar=='+' && SineHigh <= 3971 && SineHigh+50 >= Sinelow){
+							SineHigh +=124.12;
+							float VoltHigh = (SineHigh*3.3)/4096;
+							sprintf(TxDataBuffer, "V HIGH = %.1f \r\n",VoltHigh);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+						}
+						if(inputchar=='-' && SineHigh >= Sinelow+50){
+							SineHigh -=124.12;
+							float VoltHigh = (SineHigh*3.3)/4096;
+							sprintf(TxDataBuffer, "V HIGH = %.1f \r\n",VoltHigh);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+							}
+						if (inputchar == 'a' && SineHigh >= Sinelow+50){
+							Sinelow += 124.12;
+							float VoltHigh = (Sinelow*3.3)/4096;
+							sprintf(TxDataBuffer, "V LOW = %.1f \r\n",VoltHigh);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+							}
+						if (inputchar == 'd' && SineHigh+50 > Sinelow && Sinelow >= 50){
+							Sinelow -= 124.12;
+							float VoltHigh = (Sinelow*3.3)/4096;
+							sprintf(TxDataBuffer, "V LOW = %.1f \r\n",VoltHigh);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+							}
+						if (inputchar == 'q' && Frequency <= 10){
+							Frequency += 0.1;
+							sprintf(TxDataBuffer, "frequency = %.1f \r\n",Frequency);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+							}
+						if (inputchar == 'e' && Frequency >= 0.1){
+							Frequency -= 0.1;
+							sprintf(TxDataBuffer, "frequency = %.1f \r\n",Frequency);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+							}
+						}
 					break;
 				case 7:
+					TimeOn = (1/Frequency)*DutyCycle/100;
+					if(Second <= TimeOn){
+						dataOut = SquareHigh;
+					}
+					else if(Second > TimeOn && Second <= 1/Frequency){
+						dataOut = SquareLow;
+					}
+					else {
+						Second = 0;
+					}
+					if(inputchar != -1){
+						if(inputchar=='+' && SineHigh <= 3971 && SineHigh+50 >= Sinelow){
+							SquareHigh +=124.12;
+							float VoltHigh = (SquareHigh*3.3)/4096;
+							sprintf(TxDataBuffer, "V HIGH = %.1f \r\n",VoltHigh);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+						}
+						if(inputchar=='-' && SineHigh >= Sinelow+50){
+							SquareHigh -=124.12;
+							float VoltHigh = (SquareLow*3.3)/4096;
+							sprintf(TxDataBuffer, "V HIGH = %.1f \r\n",VoltHigh);
+							HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+						}
+					}
 					break;
 
 				default:
 					break;
 			}
 			timestamp = micros();
-
 
 			if (hspi3.State == HAL_SPI_STATE_READY
 					&& HAL_GPIO_ReadPin(SPI_SS_GPIO_Port, SPI_SS_Pin)
